@@ -24,7 +24,7 @@ names(data)[names(data) == "WeightMean (mg)"] <- "WeightMean"
 #####################################################################
 
 # Select Iron Age data only
-IA<-data[data$Centre_cal2sigma>-500 & data$Centre_cal2sigma<750,]
+IA<-data[data$Median>-500 & data$Median<750,]
 
 # Summarise d15N values
 min(IA$normd15N)
@@ -40,7 +40,7 @@ shapiro.test(IA$normd15N) ## p = 0.0001, so not normally distributed.
 # Check normality of d15N values when removing the outliers > 14 per mil
 batch <- IA[IA$normd15N < 14,]
 nrow(batch)
-shapiro.test(batch$normd15N) ## p = 0.092
+shapiro.test(batch$normd15N) ## p = 0.106
 
 # Summarise d13C values
 min(IA$normd13C)
@@ -50,7 +50,7 @@ sd(IA$normd13C)
 
 ## Check normality of d13C values
 qqPlot(IA$normd13C) 
-shapiro.test(IA$normd13C) ## p = 0.154
+shapiro.test(IA$normd13C) ## p = 0.168
 
 # Summarise D13C values
 min(IA$D13C)
@@ -59,11 +59,11 @@ mean(IA$D13C)
 sd(IA$D13C)
 
 # Summarise data by context
-summarydat <- ddply(data, c("SampleID","`Hordeum vulgare`", "Site"), 
+summarydat <- ddply(data, c("SampleID","BarleyType", "Site"), 
                  function(x) c(d15N=mean(x$normd15N), 
                                sdN=sd(x$normd15N), diffd15N=max(x$normd15N)-min(x$normd15N), d13C=mean(x$normd13C), 
                                sdC=sd(x$normd13C), diffd13C=max(x$normd13C)-min(x$normd13C), Delta13C=mean(x$D13C),
-                               DateMidpoint=mean(x$Centre_cal2sigma), n=nrow(x)))
+                               Median=mean(x$Median), n=nrow(x)))
 
 # Summarise d15N values by context
 min(summarydat$diffd15N[summarydat$diffd15N!=0])
@@ -83,14 +83,13 @@ mean(summarydat$sdC, na.rm=T)
 ## Perform Linear Mixed Model to test the effect of fixed variables on d15N values
 
 # Select Iron Age data only
-IA<-data[data$Centre_cal2sigma>-500 & data$Centre_cal2sigma<750,]
+IA<-data[data$Median>-500 & data$Median<750,]
 
 # Remove the two outliers
 batch <- IA[IA$normd15N < 14,]
 
 # Select data only from barley grains from contexts for which there is a 
 # directly determined radiocarbon age (Relation2isotop is "Primary" or "Secondary")
-batch$Relation2isotop[is.na(batch$Relation2isotop)] <- "Unknown"
 batch<-batch[batch$Relation2isotop=="Primary" | batch$Relation2isotop=="Secondary",]
 
 # Choose a model by AIC
@@ -99,22 +98,24 @@ interceptOnly <- gls(normd15N ~ 1, data=batch, method="ML")
 
 randomInterceptOnly <- lme(normd15N ~ 1, data=batch, random=~1|Site, method="ML")
 
-interceptDate <- gls(normd15N ~ Centre_cal2sigma, data=batch, method="ML")
+interceptDate <- gls(normd15N ~ Median, data=batch, method="ML")
 
-randomInterceptDate <- lme(normd15N ~ Centre_cal2sigma, data=batch, random=~1|Site, method="ML")
+randomInterceptDate <- lme(normd15N ~ Median, data=batch, random=~1|Site, method="ML")
 # Lowest AIC so likely to be the best model
 # No relationship between date and d15N
 
-randomInterceptDateRegion <- lme(normd15N ~ Centre_cal2sigma + Region, data=batch, random=~1|Site, method="ML")
+randomInterceptDateRegion <- lme(normd15N ~ Median + Region, data=batch, random=~1|Site, method="ML")
 
-randomInterceptDateBarley <- lme(normd15N ~ Centre_cal2sigma + BarleyType, data=batch, random=~1|Site, method="ML")
+randomInterceptDateBarley <- lme(normd15N ~ Median + BarleyType, data=batch, random=~1|Site, method="ML")
 
 anova(interceptOnly, randomInterceptOnly, interceptDate, randomInterceptDate, randomInterceptDateRegion, randomInterceptDateBarley)
 
 # model found: randomInterceptDate
-# normd15N ~ Centre_cal2sigma, data=batch, random=~1|Site
+# normd15N ~ Median, data=batch, random=~1|Site
 summary(randomInterceptDate)
 intervals(randomInterceptDate)
+summary(randomInterceptDateRegion)
+summary(randomInterceptDateBarley)
 
 ##################################################################################
 ## Perform Linear Mixed Model to test the effect of fixed variables on D13C values
@@ -126,14 +127,14 @@ interceptOnly <- gls(D13C ~ 1, data=batch, method="ML")
 randomInterceptOnly <- lme(D13C ~ 1, data=batch, random=~1|Site, method="ML")
 # Lowest AIC so likely to be the best model
 
-interceptDate <- gls(D13C ~ Centre_cal2sigma, data=batch, method="ML")
+interceptDate <- gls(D13C ~ Median, data=batch, method="ML")
 
-randomInterceptDate <- lme(D13C ~ Centre_cal2sigma, data=batch, random=~1|Site, method="ML")
+randomInterceptDate <- lme(D13C ~ Median, data=batch, random=~1|Site, method="ML")
 # No relationship between date and D13C
 
-randomInterceptDateRegion <- lme(D13C ~ Centre_cal2sigma + Region, data=batch, random=~1|Site, method="ML")
+randomInterceptDateRegion <- lme(D13C ~ Median + Region, data=batch, random=~1|Site, method="ML")
 
-randomInterceptDateBarley <- lme(D13C ~ Centre_cal2sigma + BarleyType, data=batch, random=~1|Site, method="ML")
+randomInterceptDateBarley <- lme(D13C ~ Median + BarleyType, data=batch, random=~1|Site, method="ML")
 
 anova(interceptOnly, randomInterceptOnly, interceptDate, randomInterceptDate, randomInterceptDateRegion, randomInterceptDateBarley)
 
@@ -141,6 +142,8 @@ anova(interceptOnly, randomInterceptOnly, interceptDate, randomInterceptDate, ra
 # D13C ~ Centre_cal2sigma, data=batch, random=~1|Site
 summary(randomInterceptDate)
 intervals(randomInterceptDate)
+summary(randomInterceptDateRegion)
+summary(randomInterceptDateBarley)
 
 #######################################################################################
 ## Perform Linear Mixed Model to test the effect of fixed variables on estimated weight
@@ -158,12 +161,12 @@ interceptOnly <- gls(WeightMean ~ 1, data=batch, method="ML")
 
 randomInterceptOnly <- lme(WeightMean ~ 1, data=batch, random=~1|Site, method="ML")
 
-interceptDate <- gls(WeightMean ~ Centre_cal2sigma, data=batch, method="ML")
+interceptDate <- gls(WeightMean ~ Median, data=batch, method="ML")
 
-randomInterceptDate <- lme(WeightMean ~ Centre_cal2sigma, data=batch, random=~1|Site, method="ML")
+randomInterceptDate <- lme(WeightMean ~ Median, data=batch, random=~1|Site, method="ML")
 summary(randomInterceptDate) ## No relationship between date and estimate weight
 
-randomInterceptDateRegion <- lme(WeightMean ~ Centre_cal2sigma + Region, data=batch, random=~1|Site, method="ML")
+randomInterceptDateRegion <- lme(WeightMean ~ Median + Region, data=batch, random=~1|Site, method="ML")
 
 anova(interceptOnly, randomInterceptOnly, interceptDate, randomInterceptDate, randomInterceptDateRegion)
 
